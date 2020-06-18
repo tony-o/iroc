@@ -1,0 +1,16 @@
+obj point
+  x := 0, y := 0, z := 0
+  fun diff(point a := point)
+    point(x := me.x - a.x,
+          y := me.y - a.y,
+          z := me.z - a.z,)
+
+fun copy_point(point a, x := a.x, y := a.y, z := a.z)
+  point(:x, :y, :z)
+
+p1 := point(x := 5, y := 10, z := 10)
+p2 := point(x := 1, y := 1,  z := 1 )
+
+print ":x(%d) :y(%d) :z(%d)", p1.diff(p2)
+
+p1 = copy_point(p1, z := 5)

@@ -1,0 +1,18 @@
+## spidering
+inc network.http.client as h_client
+inc text.html.parse as h_parser
+inc worker_queue
+
+start_url := "https://google.com/?q=test"
+queue     := worker_queue(workers := 3)
+queue.start(
+  worker := fun(data)
+    html := h_parser(html := h_client.get(start_url))
+    html.find("a").for(fun (e) => queue.push(e.attr("href")))
+  drain := fun()
+    print "queue all done!\n"
+    queue.close
+)
+
+queue.wait
+print "no more links to parse\n"

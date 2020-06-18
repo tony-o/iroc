@@ -1,0 +1,4 @@
+fun xyz (x := 1, y := 2,)
+  print('x: %d, y: |y|\n', x)
+
+print('done\n')
