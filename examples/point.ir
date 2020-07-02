@@ -1,0 +1,14 @@
+obj point
+  x := 0 y := 0
+  fun add(p)
+    x += p.x
+    y += p.y
+  fun dump
+    print 'point (x: %d, y: %d)\n' x y
+
+# main
+
+x := point 5 8
+y := point x:=5 y:=8
+x.dump
+y.dump

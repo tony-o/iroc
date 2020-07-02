@@ -1,0 +1,23 @@
+#!/usr/bin/env perl
+
+use lib 'lib';
+use Iroc;
+use Getopt::Long;
+use DDP;
+
+my $eval;
+GetOptions(
+  'eval=s'  => \$eval,# = undef),
+  'verbose!' => \$Iroc::VERBOSE,
+) or die sprintf('Unknown option: %s', $@);
+
+if (@ARGV && defined $eval) {
+  printf("Please run a file or eval, not both.\n");
+  exit 255;
+}
+if (! @ARGV && !defined $eval) {
+  printf("Supply a file or -e.\n");
+}
+
+Iroc::run($eval) if $eval;
+Iroc::run_file($ARGV[0]) unless $eval;
