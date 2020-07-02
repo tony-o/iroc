@@ -54,6 +54,7 @@ sub scan {
       when ( $tok eq '-' ) { $type = 'MINUS';  }
       when ( $tok eq '+' ) { $type = 'PLUS';   }
       when ( $tok eq '*' ) { $type = 'STAR';   }
+      when ( $tok eq '/' ) { $type = 'DIV';    }
       when ( $tok eq '!' ) { $type = 'NOT';    }
       when ( $tok eq '=' ) { $type = 'EQ';     }
       when ( $tok eq '>' ) { $type = 'GT';     }

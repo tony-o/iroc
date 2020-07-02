@@ -19,7 +19,9 @@ sub run {
     Iroc::Scanner::scan($str)
   );
   use DDP max_depth => 15 ;
-  p $x->{data};
+  p $x;
+  my $y = $x->eval;
+  p $y;
 }
 
 sub run_file {

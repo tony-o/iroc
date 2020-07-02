@@ -2,12 +2,13 @@ package Iroc::Parser;
 
 use strict;
 use warnings;
+use feature 'switch';
+no warnings 'experimental';
 
 use Exporter qw<import>;
 our @EXPORT_OK = qw<parse>;
 
 our $VERBOSE = 0;
-use DDP;
 
 sub new {
   bless {
@@ -43,7 +44,6 @@ sub _equality {
 sub _comparison {
   my ($self) = @_;
   my $expr = $self->_addition;
-  printf "==> _comparison: %s\n", np $expr;
   while ($self->_eat(qr/^(GT|GE|LT|LE)$/)) {
     $expr = Iroc::Parser::Expression->new(
       'binary',
@@ -58,7 +58,6 @@ sub _comparison {
 sub _addition {
   my ($self) = @_;
   my $expr = $self->_multiplication;
-  printf "==> _addition: %s\n", np $expr;
   while ($self->_eat(qr/^(MINUS|PLUS)$/)) {
     $expr = Iroc::Parser::Expression->new(
       'binary',
@@ -73,7 +72,6 @@ sub _addition {
 sub _multiplication {
   my ($self) = @_;
   my $expr = $self->_unary;
-  printf "==> _multiplication: %s\n", np $expr;
   while ($self->_eat(qr/^(SLASH|STAR)$/)) {
     $expr = Iroc::Parser::Expression->new(
       'binary',
@@ -87,7 +85,6 @@ sub _multiplication {
 
 sub _unary {
   my ($self) = @_;
-  printf "==> _unary\n";
   if ($self->_eat(qr/^(BANG|MINUS)$/)) {
     return Iroc::Parser::Expression->new(
       'unary',
@@ -100,7 +97,6 @@ sub _unary {
 
 sub _primary {
   my ($self) = @_;
-  printf "==> _primary\n";
   return Iroc::Parser::Expression->new('literal', $self->_previous)
     if ($self->_eat(qr/^(NULL|TRUE|FALSE)$/));
   return Iroc::Parser::Expression->new('literal', $self->_previous)
@@ -160,13 +156,46 @@ package Iroc::Parser::Error {
   sub error { $_[0]->{error} // 'undefined error'; };
 };
 package Iroc::Parser::Expression {
-  use DDP; 
   sub new {
     my ($pkg, $t, @rest) = @_;
-    printf("Made %s expression '%s'\n", $t, np @rest)
-      if $VERBOSE;
     bless { _type => $t, data => \@rest, }, $pkg; 
   };
+
+  sub eval {
+    my ($self) = @_;
+    my $t;
+    given ($t = $self->{_type}) {
+      when ($t eq 'literal') { return $self->{data}->[0];  };
+      when ($t eq 'group')   { return $self->{data}->eval; };
+     
+      when ($t eq 'binary') {
+        printf "binary\n";
+        my ($l, $o, $r) = ($self->{data}->@*);
+        return $l le $r if $o eq 'LE';
+        return $l lt $r if $o eq 'LT';
+        return $l ge $r if $o eq 'GE';
+        return $l gt $r if $o eq 'GT';
+        return $l eq $r if $o eq 'EQ';
+        return $l ne $r if $o eq 'NE';
+        return $l - $r if $o eq 'MINUS';
+        return $l + $r if $o eq 'PLUS';
+        return $l * $r if $o eq 'STAR';
+        return $l / $r if $o eq 'DIV';
+        return undef;
+      }
+      when ($t eq 'unary') {
+        my $r = $self->{data}->[1]->eval;
+        return $self->{data}->[1] * -1
+          if $self->{data}->[0]->{type} eq 'MINUS';
+        return !$self->{data}->[1]
+          if $self->{data}->[0]->{type} eq 'BANG';
+        return undef;
+      }
+      default {
+        die sprintf('I do not know how to evalute expression of type %s', $self->{_type});
+      };
+    };
+  }
 };
 
 '0e0';
