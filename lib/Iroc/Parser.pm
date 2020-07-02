@@ -169,7 +169,6 @@ package Iroc::Parser::Expression {
       when ($t eq 'group')   { return $self->{data}->eval; };
      
       when ($t eq 'binary') {
-        printf "binary\n";
         my ($l, $o, $r) = ($self->{data}->@*);
         return $l le $r if $o eq 'LE';
         return $l lt $r if $o eq 'LT';
