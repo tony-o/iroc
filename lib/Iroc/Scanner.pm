@@ -60,7 +60,7 @@ sub scan {
       when ( $tok eq '>' ) { $type = 'GT';     }
       when ( $tok eq '<' ) { $type = 'LT';     }
       when ( $tok eq ':' ) { $type = 'COLON';  }
-      when ( $tok eq "\r" || $tok eq "\t") { }
+      when ( $tok eq "\r" || $tok eq "\t") {   }
       when ( $tok eq "\n" ) {
         $line++;
         $pos = 0;
