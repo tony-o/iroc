@@ -72,8 +72,8 @@ sub _printeat {
   my ($self) = @_;
   eval {
     $self->_expression;
-  } or eval {
-    $self->_id;
+#  } or eval {
+#    $self->_id;
   } or do {
     undef;
   };
@@ -196,7 +196,8 @@ sub _primary {
     $self->_eatordie(qr/^RPAR$/, 'Expected right paren, did not find.');
     return Iroc::Expression->new('group', $self->{env}, $tok);
   }
-  die $self->_error('expected expression')->error;
+  return $self->_id || 
+    die $self->_error('expected expression')->error;
 }
 
 sub _eat {
