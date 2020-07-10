@@ -1,0 +1,6 @@
+a := 'hello'
+b := 'world!'
+  b := a
+    a := 'xyz'
+    printn '%s %s' a b
+printn '%s %s' a b

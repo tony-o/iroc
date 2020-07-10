@@ -8,19 +8,104 @@ no warnings 'experimental';
 use Exporter qw<import>;
 our @EXPORT_OK = qw<parse>;
 
+use Iroc::Stmt;
+use Iroc::Expression;
+use Iroc::Env;
 our $VERBOSE = 0;
 
 sub new {
   bless {
-    tokens => [ref $_[1] eq 'ARRAY' ? $_[1] : @_[1..@_-1]],
-    idx    => 0,
+    tokens  => [ref $_[1] eq 'ARRAY' ? $_[1] : @_[1..@_-1]],
+    idx     => 0,
+    stmt    => [],
+    env     => Iroc::Env->new(undef, {ident => 0}),
+    idt     => undef,
+    _scopel => 0,
   }, $_[0];
 }
 
 sub parse {
   my $i = Iroc::Parser->new(ref $_[0] eq 'Iroc::Parser' ? @_[1..@_-1] : @_);
   $i->{idx} = 0;
-  $i->_expression;
+  my $e;
+  while (!$i->_end) {
+    $e = $i->_stmt;
+    last unless $e;
+    push $i->{stmt}->@*, $e if ref $e eq 'Iroc::Stmt';
+  }
+# need to do something if we have more garbage.
+  #use DDP; p $i->{stmt};
+  $i;
+}
+
+sub _stmt {
+  my ($self) = @_;
+  my $idx = $self->{idx};
+  if ($self->_eat(qr/^ID$/, 1, 1)) {
+    my $id = $self->_previous;
+    if ($id->{token} eq 'print' || $id->{token} eq 'printn') {
+      return $self->_print;
+    } elsif ($self->_eat(qr/^DEF$/)) {
+      return $self->_decl($id);
+    } else {
+      die sprintf("I don't know what you want with %s\n", $self->_previous->{token});
+    }
+  }
+  $self->{idx} = $idx; # don't FF
+  undef;
+}
+
+sub _decl {
+  my ($self, $id) = @_;
+  my $expr = $self->_printeat
+    or die 'Expected expression in variable declaration';
+  $self->_eatordie(qr/^(NL|EOF)$/, 'Expect new line or EOF after variable declaration');
+  Iroc::Stmt->new({
+    type => 'def',
+    name => $id->{token},
+    expr => $expr,
+    env  => $self->{env},
+  });
+}
+
+sub _printeat {
+  my ($self) = @_;
+  eval {
+    $self->_expression;
+  } or eval {
+    $self->_id;
+  } or do {
+    undef;
+  };
+}
+sub _print {
+  my ($self) = @_;
+  my $tok  = $self->_previous;
+  my @expr;
+  my $x;
+  while ($x = $self->_printeat) {
+    push @expr, $x;
+  }
+  $self->_eatordie(qr/^(NL|EOF)$/, 'Expect new line after print statement');
+  Iroc::Stmt->new({
+    type  => 'fn',
+    name  => $tok->{token},
+    expr  => \@expr,
+    token => $tok,
+    env   => $self->{env},
+  });
+}
+
+sub _id {
+  my ($self) = @_;
+  if ($self->_eat(qr/^ID$/)) {
+    return Iroc::Expression->new(
+      'id',
+      $self->{env},
+      $self->_previous,
+    );
+  }
+  undef;
 }
 
 sub _expression {
@@ -31,8 +116,9 @@ sub _equality {
   my ($self) = @_;
   my $expr   = $self->_comparison;
   while ($self->_eat(qr/^(EQ|NE)$/)) {
-    $expr = Iroc::Parser::Expression->new(
+    $expr = Iroc::Expression->new(
       'binary',
+      $self->{env},
       $expr,
       $self->_previous->{type},
       $self->_comparison,
@@ -45,8 +131,9 @@ sub _comparison {
   my ($self) = @_;
   my $expr = $self->_addition;
   while ($self->_eat(qr/^(GT|GE|LT|LE)$/)) {
-    $expr = Iroc::Parser::Expression->new(
+    $expr = Iroc::Expression->new(
       'binary',
+      $self->{env},
       $expr,
       $self->_previous->{type},
       $self->_addition,
@@ -59,8 +146,9 @@ sub _addition {
   my ($self) = @_;
   my $expr = $self->_multiplication;
   while ($self->_eat(qr/^(MINUS|PLUS)$/)) {
-    $expr = Iroc::Parser::Expression->new(
+    $expr = Iroc::Expression->new(
       'binary',
+      $self->{env},
       $expr,
       $self->_previous->{type},
       $self->_multiplication,
@@ -73,8 +161,9 @@ sub _multiplication {
   my ($self) = @_;
   my $expr = $self->_unary;
   while ($self->_eat(qr/^(SLASH|STAR)$/)) {
-    $expr = Iroc::Parser::Expression->new(
+    $expr = Iroc::Expression->new(
       'binary',
+      $self->{env},
       $expr,
       $self->_previous->{type},
       $self->_unary,
@@ -86,8 +175,9 @@ sub _multiplication {
 sub _unary {
   my ($self) = @_;
   if ($self->_eat(qr/^(BANG|MINUS)$/)) {
-    return Iroc::Parser::Expression->new(
+    return Iroc::Expression->new(
       'unary',
+      $self->{env},
       $self->_previous,
       $self->_unary,
     );
@@ -97,27 +187,41 @@ sub _unary {
 
 sub _primary {
   my ($self) = @_;
-  return Iroc::Parser::Expression->new('literal', $self->_previous)
+  return Iroc::Expression->new('literal', $self->{env}, $self->_previous)
     if ($self->_eat(qr/^(NULL|TRUE|FALSE)$/));
-  return Iroc::Parser::Expression->new('literal', $self->_previous)
+  return Iroc::Expression->new('literal',  $self->{env}, $self->_previous)
     if ($self->_eat(qr/^(NUM|STR)$/));
   if ($self->_eat(qr/^(LPAR)$/)) {
     my $tok = $self->_expression;
     $self->_eatordie(qr/^RPAR$/, 'Expected right paren, did not find.');
-    return Iroc::Parser::Expression->new('group', $tok);
+    return Iroc::Expression->new('group', $self->{env}, $tok);
   }
   die $self->_error('expected expression')->error;
 }
 
 sub _eat {
-  my ($self, $regex, $eatws) = @_;
+  my ($self, $regex, $eatws, $changescope) = @_;
   my $idx = $self->{idx};
+  $changescope //= 0;
   if ($eatws//1) { #consume meaningless WS
+    my $is = 0;
     while ($self->{tokens}->[$idx] && $self->{tokens}->[$idx]->{type} eq 'SPACE') {
+      $is += length $self->{tokens}->[$idx]->{token};
       $idx++;
     }
     if ($self->{tokens}->[$idx]->{type} !~ $regex) {
       return undef;
+    }
+    if ($changescope) {
+      my $level = $is; #$idx - $self->{idx};
+      if ($self->{_scopel} < $level) {
+        $self->{env} = Iroc::Env->new($self->{env}, { ident => $is });
+      } elsif ($self->{_scopel} > $level) {
+        while ($self->{env}->{meta}->{ident} > $level) {
+          $self->{env} = $self->{env}->{parent} or die 'unwound environment too far.';
+        }
+      }
+      $self->{_scopel} = $level;
     }
     $self->{idx} = $idx;
   }
@@ -141,7 +245,15 @@ sub _fastforward {
 }
 sub _current  { $_[0]->{tokens}->[$_[0]->{idx}]; }
 sub _previous { $_[0]->{idx} == 0 ? undef : $_[0]->{tokens}->[$_[0]->{idx}-1]; }
-sub _end { $_[0]->{tokens}->@* < $_[0]->{idx} ? 1 : 0; }
+sub _end {
+  my ($self) = @_;
+  return 1 if $self->{tokens}->@* <= $self->{idx};
+  my $idx = $self->{idx};
+  while ($self->{tokens}->@* > $idx) {
+    return 0 if $self->{tokens}->[$idx++]->{type} !~ m/^(NL|SPACE|EOF)$/;
+  }
+  return 1;
+}
 
 sub _error {
   my ($self, $err) = @_;
@@ -154,47 +266,6 @@ sub _error {
 package Iroc::Parser::Error {
   sub new   { bless { error => $_[1], }, $_[0];    };
   sub error { $_[0]->{error} // 'undefined error'; };
-};
-package Iroc::Parser::Expression {
-  sub new {
-    my ($pkg, $t, @rest) = @_;
-    bless { _type => $t, data => \@rest, }, $pkg; 
-  };
-
-  sub eval {
-    my ($self) = @_;
-    my $t;
-    given ($t = $self->{_type}) {
-      when ($t eq 'literal') { return $self->{data}->[0];  };
-      when ($t eq 'group')   { return $self->{data}->eval; };
-     
-      when ($t eq 'binary') {
-        my ($l, $o, $r) = ($self->{data}->@*);
-        return $l le $r if $o eq 'LE';
-        return $l lt $r if $o eq 'LT';
-        return $l ge $r if $o eq 'GE';
-        return $l gt $r if $o eq 'GT';
-        return $l eq $r if $o eq 'EQ';
-        return $l ne $r if $o eq 'NE';
-        return $l - $r if $o eq 'MINUS';
-        return $l + $r if $o eq 'PLUS';
-        return $l * $r if $o eq 'STAR';
-        return $l / $r if $o eq 'DIV';
-        return undef;
-      }
-      when ($t eq 'unary') {
-        my $r = $self->{data}->[1]->eval;
-        return $self->{data}->[1] * -1
-          if $self->{data}->[0]->{type} eq 'MINUS';
-        return !$self->{data}->[1]
-          if $self->{data}->[0]->{type} eq 'BANG';
-        return undef;
-      }
-      default {
-        die sprintf('I do not know how to evalute expression of type %s', $self->{_type});
-      };
-    };
-  }
 };
 
 '0e0';

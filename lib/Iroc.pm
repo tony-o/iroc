@@ -18,10 +18,20 @@ sub run {
   my $x = Iroc::Parser::parse(
     Iroc::Scanner::scan($str)
   );
-  use DDP max_depth => 15 ;
-  p $x;
-  my $y = $x->eval;
-  p $y;
+  for my $s ($x->{stmt}->@*) {
+    eval {
+      $s->eval($x->{env});
+      1;
+    } or do {
+      printf "Runtime exception: %s caught at:\n  line: %d\n  position %d\n",
+             $@,
+             $s->{token}->{line},
+             $s->{token}->{pos},
+             ;
+      exit 255;
+    };
+  }
+  undef;
 }
 
 sub run_file {

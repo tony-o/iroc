@@ -1,0 +1,5 @@
+x := 5
+y := 1
+  x := 2
+  printn '%d, %d' x y
+printn '%d, %d' x y

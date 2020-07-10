@@ -1,0 +1,4 @@
+printn "%d" 5
+print "%s\n" 'hello world!'
+printn "\t%d %s" 1 'line 1'
+printn "\t%d %s" 2 'line 2'

@@ -1,0 +1,4 @@
+f := 5
+printn "%d" f
+f := 10
+printn "%d" f
