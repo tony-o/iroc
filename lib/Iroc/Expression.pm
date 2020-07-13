@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use feature 'switch';
 no warnings 'experimental';
+use Scalar::Util qw(looks_like_number);
 
 use Exporter qw<import>;
 our @EXPORT_OK = qw<new>;
@@ -21,26 +22,42 @@ sub eval {
   my $t;
   given ($t = $self->{_type}) {
     when ($t eq 'literal') {
-      return $self->{data}->[0]->{token};
+      return $self->{data}->[0]->{type} eq 'NULL' ? undef : $self->{data}->[0]->{token};
     };
-    when ($t eq 'group')   { return $self->{data}->eval($self->{env}); };
+    when ($t eq 'group') {
+      return $self->{data}->[0]->eval($self->{env});
+    };
     when ($t eq 'id') {
       return $self->{env}->lkp($self->{data}->[0]->{token});
     };
     when ($t eq 'binary') {
       my ($l, $o, $r) = ($self->{data}->@*);
-      return $l->eval($self->{env}) le $r->eval($self->{env}) if $o eq 'LE';
-      return $l->eval($self->{env}) lt $r->eval($self->{env}) if $o eq 'LT';
-      return $l->eval($self->{env}) ge $r->eval($self->{env}) if $o eq 'GE';
-      return $l->eval($self->{env}) gt $r->eval($self->{env}) if $o eq 'GT';
-      return $l->eval($self->{env}) eq $r->eval($self->{env}) if $o eq 'EQ';
-      return $l->eval($self->{env}) ne $r->eval($self->{env}) if $o eq 'NE';
-      return $l->eval($self->{env}) -  $r->eval($self->{env}) if $o eq 'MINUS';
-      return $l->eval($self->{env}) +  $r->eval($self->{env}) if $o eq 'PLUS';
-      return $l->eval($self->{env}) *  $r->eval($self->{env}) if $o eq 'STAR';
-      return $l->eval($self->{env}) /  $r->eval($self->{env}) if $o eq 'DIV';
+      my ($x, $y) = ($l->eval($self->{env}), $r->eval($self->{env}));
+      if (looks_like_number($x) && looks_like_number($y)) {
+        return $x <= $y if $o eq 'LE';
+        return $x <  $y if $o eq 'LT';
+        return $x >= $y if $o eq 'GE';
+        return $x >  $y if $o eq 'GT';
+        return $x == $y if $o eq 'EQ';
+        return $x != $y if $o eq 'NE';
+      }
+      return $x le $y if $o eq 'LE';
+      return $x lt $y if $o eq 'LT';
+      return $x ge $y if $o eq 'GE';
+      return $x gt $y if $o eq 'GT';
+      return $x eq $y if $o eq 'EQ';
+      return $x ne $y if $o eq 'NE';
+      return $x -  $y if $o eq 'MINUS';
+      return $x +  $y if $o eq 'PLUS';
+      return $x *  $y if $o eq 'STAR';
+      return $x /  $y if $o eq 'DIV';
       return undef;
-    }
+    };
+    when ($t eq 'call') {
+      use DDP;
+      p $self;
+      die 'nyi - call (Iroc::Expression)';
+    };
     when ($t eq 'unary') {
       my $r = $self->{data}->[1]->eval($self->{env});
       return $self->{data}->[1] * -1
@@ -48,7 +65,13 @@ sub eval {
       return !$self->{data}->[1]
         if $self->{data}->[0]->{type} eq 'BANG';
       return undef;
-    }
+    };
+    when ($t eq 'logic') {
+      my ($l, $o, $r) = ($self->{data}->@*);
+      $l = $l->eval;
+      $r = $r->eval;
+      return $o eq 'and' ? $l && $r : $o eq 'or' ? $l || $r : die 'How did you get here?'; 
+    };
     default {
       die sprintf('I do not know how to evalute expression of type %s', $self->{_type});
     };

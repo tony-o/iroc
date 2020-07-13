@@ -43,10 +43,48 @@ sub eval {
     when ($t eq 'def') {
       $self->{env}->set($self->{name}, $self->{expr}, 0);
     };
+    when ($t eq 'if') {
+      if ($self->{expr}->eval) {
+        $_->eval for $self->{then}->@*;
+      } else {
+        $_->eval for $self->{else}->@*;
+      }
+    }
+    when ($t eq 'call') {
+      use DDP;
+      p $self;
+      die 'nyi - call (Iroc::Stmt)';
+      $self->{expr}->eval;
+    }
+    when ($t eq 'ctrl') { die Iroc::Control->new($self->{stmt}); }
+    when ($t eq 'while') {
+      my $r;
+      W:while (!!$self->{expr}->eval) {
+        for my $s ($self->{block}->@*) {
+          eval {
+            $s->eval;
+            1;
+          } or do {
+            my $err = $@;
+            if (ref $err eq 'Iroc::Control') {
+              last W if $err->t eq 'last';
+              next W if $err->t eq 'next';
+            } else {
+              die $err;
+            }
+          };
+        }
+      }
+    }
     default {
-      die "I don't know what to do with: " . $self->{expr};
+      die "I don't know what to do with: " . $t;
     };
   };
 }
+
+package Iroc::Control {
+  sub new { bless { type => $_[1], }, __PACKAGE__; };
+  sub t   { $_[0]->{type}; };
+};
 
 '0e0';

@@ -1,0 +1,36 @@
+abt := 10
+while abt >= 0
+  printn "%d" abt
+  abt := abt - 1
+
+printn 'counting to ten:'
+i := 0
+while i < 10
+  print i
+  i := i + 1
+printn '\ni + 1 = %d' i
+
+printn 'while true will enter/exit'
+while true
+  last
+
+printn 'while true will enter and loop 10x then exit'
+i := 0
+while true
+  i := i + 1
+  if i > 10
+    last
+  printn 'i: %d' i
+  next
+  printn 'never executed'
+
+i := 1
+while i < 3
+  while true
+    last
+  printn 'nested last: %d' i
+  i := i + 1
+
+printn 'done!'
+
+last

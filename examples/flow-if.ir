@@ -1,0 +1,14 @@
+a := 5
+if a = 6
+  printn 'a eq 6'
+  printn 'another stmt'
+else
+  printn 'never gets here'
+
+if a != 6
+  printn 'a ne 6'
+  printn 'not another stmt'
+  if 1 =1
+    b := 5
+    printn 'this is a nested if'
+  printn 'after if %d' b

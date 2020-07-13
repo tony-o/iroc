@@ -34,25 +34,95 @@ sub parse {
     push $i->{stmt}->@*, $e if ref $e eq 'Iroc::Stmt';
   }
 # need to do something if we have more garbage.
-  #use DDP; p $i->{stmt};
+  #use DDP; p $i->{tokens};
   $i;
 }
 
 sub _stmt {
   my ($self) = @_;
   my $idx = $self->{idx};
+  while ($self->_eat(qr/^(NL)$/)) { }
   if ($self->_eat(qr/^ID$/, 1, 1)) {
     my $id = $self->_previous;
     if ($id->{token} eq 'print' || $id->{token} eq 'printn') {
       return $self->_print;
+    } elsif ($id->{token} eq 'if') {
+      return $self->_if;
+    } elsif ($id->{token} eq 'while') {
+      return $self->_while;
+    } elsif ($id->{token} eq 'last' || $id->{token} eq 'next') {
+      return Iroc::Stmt->new({
+        type  => 'ctrl',
+        token => $id,
+        stmt  => $id->{token},
+      });
     } elsif ($self->_eat(qr/^DEF$/)) {
       return $self->_decl($id);
     } else {
+      return Iroc::Stmt->new({
+        type  => 'call',
+        token => $id,
+        args  => $self->_call,
+      });
       die sprintf("I don't know what you want with %s\n", $self->_previous->{token});
     }
   }
   $self->{idx} = $idx; # don't FF
   undef;
+}
+
+sub _while {
+  my ($self) = @_;
+  my $expr = $self->_printeat or die 'Expected expression after \'while\'';
+  $self->_eatordie(qr/^(NL|EOF)$/, 'Expect new line after \'while\'');
+  my @block;
+  my $idx = $self->{idx};
+  my $nv  = $self->{env};
+  while ( ( my $e = eval { $self->_stmt; } or do { undef; }) && $nv != $self->{env}) {
+    push @block, $e;
+    $idx = $self->{idx};
+  }
+  $self->{idx} = $idx;
+  Iroc::Stmt->new({
+    type  => 'while',
+    env   => $self->{env},
+    token => $self->{tokens}->[$self->{idx} - 1],
+    expr  => $expr,
+    block => \@block,
+  });
+}
+
+sub _if {
+  my ($self) = @_;
+  my $expr = $self->_printeat or die 'Expected expression after \'if\'';
+  $self->_eatordie(qr/^(NL|EOF)$/, 'Expect new line after \'if\'');
+
+  my (@then, @else);
+  my $nv  = $self->{env};
+  my $idx = $self->{idx};
+  while ( (my $e = eval { $self->_stmt; } or do { undef; }) && $nv != $self->{env}) {
+    push @then, $e;
+    $idx = $self->{idx};
+  }
+  $self->{idx} = $idx;
+  if (($self->_current->{token}//'') eq 'else') {
+    $self->{idx}++;
+    $idx = $self->{idx};
+    while ( (my $e = eval { $self->_stmt; } or do { undef; }) && $nv != $self->{env}) {
+      push @else, $e;
+      $idx = $self->{idx};
+    }
+    $self->{idx} = $idx;
+  }
+
+  Iroc::Stmt->new({
+    type  => 'if',
+    env   => $self->{env},
+    token => $self->{tokens}->[$self->{idx} - 1],
+    expr  => $expr,
+    then  => \@then,
+    else  => \@else,
+  });
 }
 
 sub _decl {
@@ -72,8 +142,6 @@ sub _printeat {
   my ($self) = @_;
   eval {
     $self->_expression;
-#  } or eval {
-#    $self->_id;
   } or do {
     undef;
   };
@@ -108,8 +176,48 @@ sub _id {
   undef;
 }
 
+sub _or {
+  my ($self) = @_;
+  my $expr = $self->_and;
+  my $idx = $self->{idx};
+  while ($self->_eat(qr/^ID$/) && $self->_previous->{token} eq 'or') {
+    my $token = $self->_previous;
+    my $right = $self->_equality;
+    $expr = Iroc::Expression->new(
+      'logic',
+      $self->{env},
+      $expr,
+      $token->{token},
+      $right,
+    );
+    $idx = $self->{idx};
+  }
+  $self->{idx} = $idx;
+  $expr;
+}
+
+sub _and {
+  my ($self) = @_;
+  my $expr = $self->_equality;
+  my $idx = $self->{idx};
+  while ($self->_eat(qr/^ID$/) && $self->_previous->{token} eq 'and') {
+    my $token = $self->_previous;
+    my $right = $self->_equality;
+    $expr = Iroc::Expression->new(
+      'logic',
+      $self->{env},
+      $expr,
+      $token->{token},
+      $right,
+    );
+    $idx = $self->{idx};
+  }
+  $self->{idx} = $idx;
+  $expr;
+}
+
 sub _expression {
-  $_[0]->_equality;
+  $_[0]->_or; #equality;
 }
 
 sub _equality {
@@ -182,7 +290,33 @@ sub _unary {
       $self->_unary,
     );
   }
-  $self->_primary;
+
+  $self->_call;
+}
+
+sub _call {
+  my ($self) = @_;
+  my $expr = $self->_primary;
+  
+  warn '_call';
+  $expr = $self->_eatcall;
+
+  $expr;
+}
+
+sub _eatcall {
+  my ($self) = @_;
+  my @args;
+  while ($self->_current->{type} ne 'NL') {
+    my $e = $self->_expression;
+    push @args, $e;
+  }
+  use DDP; p @args;
+  Iroc::Expression->new(
+    'call',
+    $self->{env},
+    \@args,
+  );
 }
 
 sub _primary {

@@ -1,0 +1,16 @@
+a := 5
+if ( (a) = 5 and 1 = 2) or 1=1
+  printn true
+else
+  printn false
+
+a := 15
+if (a < 50 and a = 2) or 2=1 or a > 16
+  printn true
+else
+  printn false
+
+printn null or 'hello!'
+
+b := false or 5
+printn 'b = %s' b

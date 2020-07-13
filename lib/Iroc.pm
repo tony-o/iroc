@@ -23,11 +23,24 @@ sub run {
       $s->eval($x->{env});
       1;
     } or do {
-      printf "Runtime exception: %s caught at:\n  line: %d\n  position %d\n",
-             $@,
-             $s->{token}->{line},
-             $s->{token}->{pos},
-             ;
+      my $err   = $@;
+      if (ref $@ eq 'Iroc::Control') {
+        $err = sprintf '%s called outside of while', $err->t;
+      }
+      my @lines = split "\n", $str;
+      my $linex = $s->{token}->{line};
+      my $posx  = $s->{token}->{pos};
+      $linex -= 4;
+      while ($linex < $s->{token}->{line} && $linex < @lines) {
+        printf "%d %s\n", 1 + $linex, $lines[$linex] if $linex >= 0 && $linex < @lines;
+        $linex++;
+      }
+      printf "Runtime exception: %s\n", $err;
+#      caught at:\n  line: %d\n  position %d\n",
+#             $err,
+#             $linex,
+#             $posx,
+#             ;
       exit 255;
     };
   }

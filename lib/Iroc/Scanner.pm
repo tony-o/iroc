@@ -35,15 +35,15 @@ sub scan {
         $take = 1;
         $type = 'DEF';
       }
-      when ( $tok eq 'f' && (join '', @src[0..2] // []) eq 'alse' ) {
+      when ( $tok eq 'f' && ((join '', @src[0..3]) // '') eq 'alse' ) {
         $take = 4;
         $type = 'FALSE';
       }
-      when ( $tok eq 't' && (join '', @src[0..2] // []) eq 'rue' ) {
+      when ( $tok eq 't' && ((join '', @src[0..2]) // '') eq 'rue' ) {
         $take = 3;
         $type = 'TRUE';
       }
-      when ( $tok eq 'n' && (join '', @src[0..2] // []) eq 'ull' ) {
+      when ( $tok eq 'n' && ((join '', @src[0..2]) // '') eq 'ull' ) {
         $take = 3;
         $type = 'NULL';
       }

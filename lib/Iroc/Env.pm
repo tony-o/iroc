@@ -24,11 +24,19 @@ sub lkp {
 sub set {
   my ($self, $x, $y) = @_;
   $y = $y->eval if ref $y eq 'Iroc::Expression';
-  $self->_data->{$x} = $y;
+  if (!exists $self->_data->{$x}) {
+    eval {
+      $self->_parent->set($x, $y);
+      1;
+    } or do {
+      $self->_data->{$x} = $y;
+    };
+  } else {
+    $self->_data->{$x} = $y;
+  }
 }
 sub def {
   my ($self, $lkp) = @_;
-use DDP;  printf "lkp(%s)\n%s\n", $lkp, np $self;
   exists $self->_data->{$lkp} ||
   ($self->_parent && $self->_parent->def($lkp));
 }
